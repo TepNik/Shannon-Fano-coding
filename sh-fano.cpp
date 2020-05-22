@@ -5,8 +5,11 @@
 #include <algorithm>
 #include <fstream>
 #include <cassert>
+#include <iomanip>
 
 #include "bitwriter.h"
+
+//#define DEBUG
 
 struct pr_param
 {
@@ -45,8 +48,6 @@ int main(int argc, char *argv[])
         int symbol_size;
         bitwriter<uint8_t> output = get_compress(str.c_str(), str.size(), symbol_size);
         int limit = output.ind1 + (output.ind2 == 0 ? 0 : 1);
-        std::cout << "ind1 = " << output.ind1 << '\n';
-        std::cout << "ind2 = " << output.ind2 << '\n';
         std::cout << "Compressed (in type uint8_t):\n";
         for(int i = 0; i < limit; ++i)
             std::cout << (int)output.buffer[i] << " ";
@@ -169,7 +170,7 @@ void get_code(symbol *first, symbol *end, int sum, int value)
         return;
     int sum_now = 0;
     int ind = 0;
-    while(sum_now < sum/2)
+    while(sum_now < sum/2 && first + ind < end)
     {
         sum_now += first[ind].num;
         ++ind;
@@ -185,6 +186,11 @@ bitwriter<uint8_t> get_compress(const char *input, int input_size, int &symbol_s
     if (input_size == 0)
         return bitwriter<uint8_t>();
     int size = 0, sum = 0;
+    for(int i = 0; i < sizeof(symbol_arr) / sizeof(symbol_arr[0]); ++i)
+    {
+        delete symbol_arr[i].bw.buffer;
+        symbol_arr[i].bw.buffer = new uint8_t;
+    }
     for(int i = 0; i < input_size; ++i)
     {
         symbol *ind = std::find(symbol_arr, symbol_arr + size, input[i]);
@@ -202,6 +208,19 @@ bitwriter<uint8_t> get_compress(const char *input, int input_size, int &symbol_s
         get_code(symbol_arr, symbol_arr + size, sum, 0);
     else
         get_code(symbol_arr, symbol_arr + size, sum);
+    #ifdef DEBUG
+    int length1 = 8, length2 = 15, length3 = 15;
+    std::cout << std::setw(length1) << "symbol" << std::setw(length2) << "how many" << std::setw(length3) << "code" << '\n';
+    for(int i = 0; i < size; ++i)
+    {
+        std::string code;
+        bitwriter<uint8_t> bw{symbol_arr[i].bw.buffer, 0, 0};
+        while(bw.ind1 < symbol_arr[i].bw.ind1 || bw.ind2 < symbol_arr[i].bw.ind2)
+            code += std::to_string((int)bw.get_next_bit());
+        std::cout << std::setw(length1) << symbol_arr[i].ch << std::setw(length2) << symbol_arr[i].num << std::setw(length3) << code << '\n';
+    }
+    #endif
+
     bitwriter<uint8_t> result{new uint8_t[input_size], 0, 0};
     for(int i = 0; i < input_size; ++i)
     {
